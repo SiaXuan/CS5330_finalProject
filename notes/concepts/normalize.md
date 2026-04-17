@@ -74,11 +74,35 @@ emb.norm(dim=-1, keepdim=True)  → shape (1, 1)  ← 能广播 ✓
 
 ## NumPy 里的等价写法
 
+`np.linalg` 是 NumPy 的线性代数（**lin**ear **alg**ebra）子模块，
+专门放矩阵运算相关的函数，`.norm()` 就是其中算模的那个。
+
+**单个向量：**
+
 ```python
-# NumPy（evaluate.py 里用的）
-emb = emb / np.linalg.norm(emb)          # 单个向量
-emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)  # 矩阵，每行归一化
+v = np.array([3.0, 4.0])
+np.linalg.norm(v)        # √(3² + 4²) = 5.0
+
+v / np.linalg.norm(v)    # [0.6, 0.8]  ← 长度变成 1
 ```
+
+**矩阵，每行归一化（evaluate.py 里的用法）：**
+
+```python
+emb = np.array([[3.0, 4.0],   # 行0，模=5
+                [1.0, 0.0]])  # 行1，模=1
+
+np.linalg.norm(emb, axis=1, keepdims=True)
+# → [[5.0],   ← 行0的模
+#    [1.0]]   ← 行1的模
+# shape (2, 1)，keepdims 和 PyTorch 的 keepdim 是一个意思
+
+emb / np.linalg.norm(emb, axis=1, keepdims=True)
+# → [[0.6, 0.8],   ← 行0除以5
+#    [1.0, 0.0]]   ← 行1除以1
+```
+
+`axis=1` 等价于 PyTorch 的 `dim=-1`，都是"对每行操作"。
 
 ## 归一化之后能直接用内积当相似度
 
