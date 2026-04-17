@@ -19,7 +19,12 @@ import numpy as np
 from PIL import Image
 
 # 加载模型和索引（脚本导入时就跑，注意是 module-level 代码）
-device = "cuda" if torch.cuda.is_available() else "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+else:
+    device = "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 model.eval()
 

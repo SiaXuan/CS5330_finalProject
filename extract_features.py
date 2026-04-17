@@ -23,7 +23,12 @@ from tqdm import tqdm
 # preprocess：把 PIL Image 转成 CLIP 需要的 224×224 tensor（含归一化）
 # 详见 notes/01_clip.md — "ViT-B/32 是什么"
 print("Loading CLIP model...")
-device = "cuda" if torch.cuda.is_available() else "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+else:
+    device = "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 model.eval()  # 推理模式，关掉 dropout / batch norm 的训练行为
 
