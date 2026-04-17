@@ -28,7 +28,8 @@
 
 ## 为什么用矩阵乘法
 
-`gallery_emb` shape 是 `(N, 512)`，`query_emb` shape 是 `(512,)`：
+`gallery_emb` shape 是 `(N, 512)`，`query_emb` shape 是 `(512,)`：  
+> → 不懂 shape？[concepts/shape.md](concepts/shape.md)
 
 ```python
 scores = gallery_emb @ query_emb   # (N, 512) @ (512,) → (N,)
@@ -83,6 +84,8 @@ text_emb /= np.linalg.norm(text_emb)   # ← 必须重新归一化！
 
 为什么要重新归一化：两个单位向量的平均值不再是单位向量（长度 < 1），  
 不归一化的话 cosine 相似度计算就不对了。
+
+> → 归一化语法看不懂？[concepts/normalize.md](concepts/normalize.md)
 
 ## 检索不到的情况
 

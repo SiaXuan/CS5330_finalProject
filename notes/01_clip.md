@@ -33,6 +33,9 @@ tokens = clip.tokenize(["red dress"]).to(device)
 text_emb = model.encode_text(tokens)            # shape: (1, 512)
 ```
 
+> → 不懂 `shape: (1, 512)`？[concepts/shape.md](concepts/shape.md)  
+> → 不懂 `unsqueeze(0)`？[concepts/batch.md](concepts/batch.md)
+
 两者输出都在**同一个 512 维空间**，所以可以直接做 dot product 计算相似度。
 
 ## 为什么要 normalize（L2 归一化）
@@ -40,6 +43,8 @@ text_emb = model.encode_text(tokens)            # shape: (1, 512)
 ```python
 emb = emb / emb.norm(dim=-1, keepdim=True)
 ```
+
+> → 不懂这行代码的语法？[concepts/normalize.md](concepts/normalize.md)
 
 向量归一化之后，内积（dot product）= cosine 相似度，值域 [-1, 1]：
 
