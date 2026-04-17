@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
-Text-to-image retrieval using CLIP text encoder.
+text_retrieval.py — Member B 的核心脚本：文本 → 图像检索
 
-Supports two modes:
-  freeform  : arbitrary text queries ("black dress", "white floral shirt")
-  fashioniq : uses Fashion-IQ val captions (candidate + modification → target)
+原理：把文字变成 CLIP 向量，和 gallery 里所有图片的向量做 cosine 相似度，返回最相近的。
+      文字和图片在 CLIP 的同一个 512 维空间里，所以可以直接比较。
+
+两种 query 来源：
+  freeform  : 随便写的描述，如 "black dress"、"elegant evening gown"
+  fashioniq : Fashion-IQ val 集里的 caption（每条两句，取平均向量）
+
+详见 notes/03_retrieval.md — 检索原理
+详见 notes/01_clip.md      — CLIP 文字 encoder
+详见 notes/02_data.md      — Fashion-IQ caption 格式
 
 Usage:
   python text_retrieval.py                         # freeform demo + Fashion-IQ demo
@@ -51,6 +58,8 @@ FREEFORM_QUERIES = [
 # ---------------------------------------------------------------------------
 
 def load_gallery(category: str):
+    # 读取 extract_features.py 生成的两个文件
+    # asin_to_idx: {ASIN字符串 → embeddings 里的行号}，用于根据 ASIN 查向量
     emb_path = os.path.join(FEATURES_DIR, f"{category}_embeddings.npy")
     paths_path = os.path.join(FEATURES_DIR, f"{category}_paths.txt")
     if not os.path.exists(emb_path):
@@ -80,16 +89,19 @@ def load_fashioniq_val(category: str):
 # ---------------------------------------------------------------------------
 
 def encode_text(model, query: str) -> np.ndarray:
+    # 文字 → 512维归一化向量，详见 notes/01_clip.md — "两个 Encoder"
     with torch.no_grad():
         tokens = clip.tokenize([query], truncate=True).to(device)
         emb = model.encode_text(tokens)
-        emb = emb / emb.norm(dim=-1, keepdim=True)
-    return emb.cpu().numpy().astype("float32")[0]
+        emb = emb / emb.norm(dim=-1, keepdim=True)  # L2 归一化
+    return emb.cpu().numpy().astype("float32")[0]  # (512,)
 
 
 def retrieve(query_emb: np.ndarray, gallery_emb: np.ndarray, top_k: int):
+    # (N, 512) @ (512,) = (N,)  每张 gallery 图和 query 的 cosine 相似度
+    # 详见 notes/03_retrieval.md — "为什么用矩阵乘法"
     scores = gallery_emb @ query_emb
-    top_idx = np.argsort(scores)[::-1][:top_k]
+    top_idx = np.argsort(scores)[::-1][:top_k]  # 降序取前 top_k
     return top_idx, scores[top_idx]
 
 
@@ -173,6 +185,8 @@ def run_fashioniq(model, gallery_emb, gallery_paths, asin_to_idx,
         cap1, cap2 = entry["captions"][0], entry["captions"][1]
         emb1 = encode_text(model, cap1)
         emb2 = encode_text(model, cap2)
+        # 两句 caption 分别编码后取平均，再重新归一化
+        # 详见 notes/03_retrieval.md — "Fashion-IQ Caption 的特殊处理"
         query_emb = (emb1 + emb2) / 2
         query_emb = query_emb / np.linalg.norm(query_emb)
 

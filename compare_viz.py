@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """
-Report-quality comparison figures and failure/success case analysis.
+compare_viz.py — Member C 的报告可视化脚本
 
-Generates:
-  results/compare/comparison_NNN.png   per-query 3-row grid (text/image/fusion)
-  results/compare/success_cases.png    grid of queries where fusion beats both baselines
-  results/compare/failure_cases.png    grid of hard queries all modes get wrong
+生成三类图片用于报告：
+  comparison_NNN.png  : 每条 query 的 3 行对比（text-only / image-only / fusion）
+  success_cases.png   : fusion 明显优于两个单模态的案例（"Fusion wins"）
+  failure_cases.png   : 三种模式都失败的案例（用于 failure analysis）
+  baseline_wins.png   : 单模态好但 fusion 反而更差的案例
+
+scan_entries 函数：批量计算前 N 条 query 的 rank，自动筛选三类案例，
+                  速度快（用矩阵乘法，同 evaluate.py 的方式）。
+
+先跑 evaluate.py 确定最好的 alpha，再用 --alpha <best> 跑这个脚本。
+
+详见 notes/05_fusion_and_tuning.md — 三类案例的含义和报告写法
+详见 notes/04_evaluation.md       — rank 的计算方式
 
 Usage:
   python compare_viz.py                    # 5 comparison + success + failure grids

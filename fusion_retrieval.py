@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
-Multimodal fusion retrieval demo.
+fusion_retrieval.py — Member C 的融合检索 demo
 
-Combines text and image similarity scores:
-    final_score = alpha * text_score + (1 - alpha) * image_score
+公式：final_score = alpha * text_score + (1-alpha) * image_score
+     两个分数都是归一化后的 cosine 相似度，值域相同，可以直接加权平均。
 
-For each Fashion-IQ val query:
-  - Text query  : average CLIP embedding of both modification captions
-  - Image query : CLIP embedding of the candidate image
-  - Target      : should appear in the ranked gallery
+用途：生成报告里的 demo 图（不是跑完整评估用的，完整评估用 evaluate.py）
+
+--compare 参数：生成 3 行图（text-only / image-only / fusion），
+               直观展示 fusion 是否改善了 rank。
+
+如何选 alpha：先跑 evaluate.py --alphas 0.3 0.5 0.7，
+             找 R@10 最高的 alpha，再用那个值跑这个脚本。
+
+详见 notes/05_fusion_and_tuning.md — Fusion 策略与调参
+详见 notes/02_data.md             — Fashion-IQ query 格式
 
 Usage:
   python fusion_retrieval.py                     # demo with alpha=0.5
@@ -67,14 +73,15 @@ def _try_open(path: str) -> Image.Image:
 
 
 def get_query_embeddings(model, entry, gallery_emb, asin_to_idx):
-    """Return (text_emb, image_emb) for a Fashion-IQ entry using gallery lookups."""
+    """一条 Fashion-IQ query → (text_emb, image_emb)"""
     cap1, cap2 = entry["captions"][0], entry["captions"][1]
     emb1 = encode_text(model, cap1)
     emb2 = encode_text(model, cap2)
-    text_emb = (emb1 + emb2) / 2
-    text_emb /= np.linalg.norm(text_emb)
+    text_emb = (emb1 + emb2) / 2     # 两句 caption 向量平均
+    text_emb /= np.linalg.norm(text_emb)  # 重新归一化
 
-    # Candidate image embedding from pre-computed gallery
+    # candidate 在 gallery 里，直接切片，不读硬盘
+    # 详见 notes/02_data.md — "为什么 candidate 和 target 都在 gallery 里"
     cand_idx = asin_to_idx[entry["candidate"]]
     image_emb = gallery_emb[cand_idx]
     return text_emb, image_emb
