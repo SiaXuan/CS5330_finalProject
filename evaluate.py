@@ -17,6 +17,11 @@ Usage:
   python evaluate.py --alphas 0.5               # single fusion weight
   python evaluate.py --category shirt           # different category
   python evaluate.py --save                     # write results/eval_results.json
+
+  # Skip the gallery shortcut and re-encode every candidate image from
+  # disk. Mathematically equivalent but slower — useful as a sanity check
+  # and to confirm the pipeline works without pre-computed vectors.
+  python evaluate.py --no-gallery-lookup
 """
 import os
 import json
@@ -25,6 +30,7 @@ import argparse
 import clip
 import torch
 import numpy as np
+from PIL import Image
 from tqdm import tqdm
 
 CATEGORY = "dress"
@@ -82,6 +88,31 @@ def encode_text_batch(model, queries: list[str], batch_size: int = 64) -> np.nda
 
 
 # ---------------------------------------------------------------------------
+# Batch image encoding (used when --no-gallery-lookup is set)
+# ---------------------------------------------------------------------------
+
+def encode_image_batch(model, preprocess, paths: list, batch_size: int = 32) -> np.ndarray:
+    """Encode a list of image paths to normalized CLIP embeddings.
+
+    Used as the slower-but-general alternative to gallery-slicing: each
+    candidate image is re-encoded from disk. Results are mathematically
+    equivalent to the gallery lookup (same CLIP weights, same preprocess),
+    so Recall@K numbers should match.
+    """
+    embeddings = []
+    for i in tqdm(range(0, len(paths), batch_size), desc="  encode_image_batch"):
+        batch_paths = paths[i : i + batch_size]
+        tensors = torch.stack(
+            [preprocess(Image.open(p).convert("RGB")) for p in batch_paths]
+        ).to(device)
+        with torch.no_grad():
+            emb = model.encode_image(tensors)
+            emb = emb / emb.norm(dim=-1, keepdim=True)
+        embeddings.append(emb.cpu().numpy().astype("float32"))
+    return np.concatenate(embeddings, axis=0)
+
+
+# ---------------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------------
 
@@ -89,11 +120,15 @@ def recall_at_k(ranks: np.ndarray, k: int) -> float:
     return float(np.mean(ranks <= k))
 
 
-def evaluate_all(entries, gallery_emb, asin_to_idx, model, alphas):
+def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas,
+                 preprocess=None, no_gallery_lookup: bool = False):
     """
     Fast batch evaluation.
     - Text embeddings: average of 2 captions, batch-encoded upfront.
-    - Image embeddings: looked up from pre-computed gallery (zero disk I/O).
+    - Image embeddings: either looked up from the pre-computed gallery
+      (default, zero disk I/O) or re-encoded from disk per candidate when
+      `no_gallery_lookup=True` (slower, but proves the pipeline works
+      without a pre-computed index and supports arbitrary candidates).
     - All similarity matrices built with one matmul per modality.
     """
     # Filter entries where both target and candidate are in the gallery
@@ -115,10 +150,17 @@ def evaluate_all(entries, gallery_emb, asin_to_idx, model, alphas):
     text_embs = (emb1 + emb2) / 2
     text_embs /= np.linalg.norm(text_embs, axis=1, keepdims=True)
 
-    # Look up candidate image embeddings directly from gallery
-    print("  Looking up candidate image embeddings...")
-    cand_idx = np.array([asin_to_idx[e["candidate"]] for e in valid])
-    image_embs = gallery_emb[cand_idx]           # (N, D)
+    # Candidate image embeddings: gallery lookup (fast) or re-encode (general)
+    if no_gallery_lookup:
+        if preprocess is None:
+            raise ValueError("preprocess must be provided when no_gallery_lookup=True")
+        print("  Re-encoding candidate images from disk (--no-gallery-lookup)...")
+        cand_paths = [gallery_paths[asin_to_idx[e["candidate"]]] for e in valid]
+        image_embs = encode_image_batch(model, preprocess, cand_paths)  # (N, D)
+    else:
+        print("  Looking up candidate image embeddings...")
+        cand_idx = np.array([asin_to_idx[e["candidate"]] for e in valid])
+        image_embs = gallery_emb[cand_idx]           # (N, D)
 
     # Target indices in gallery
     target_idx = np.array([asin_to_idx[e["target"]] for e in valid])
@@ -206,10 +248,14 @@ def main():
     )
     parser.add_argument("--save", action="store_true",
                         help="Save results to results/eval_results.json")
+    parser.add_argument("--no-gallery-lookup", action="store_true",
+                        help="Re-encode candidate images from disk instead of "
+                             "slicing the pre-computed gallery (slower but "
+                             "supports open-set candidates)")
     args = parser.parse_args()
 
     print("Loading CLIP model (ViT-B/32)...")
-    model, _ = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load("ViT-B/32", device=device)
     model.eval()
 
     print("Loading gallery...")
@@ -221,7 +267,10 @@ def main():
     print(f"Val queries: {len(entries)}")
 
     print("\nRunning evaluation...")
-    results = evaluate_all(entries, gallery_emb, asin_to_idx, model, args.alphas)
+    results = evaluate_all(
+        entries, gallery_emb, gallery_paths, asin_to_idx, model, args.alphas,
+        preprocess=preprocess, no_gallery_lookup=args.no_gallery_lookup,
+    )
 
     print_table(results)
 
