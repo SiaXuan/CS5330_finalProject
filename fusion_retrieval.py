@@ -15,6 +15,12 @@ Usage:
   python fusion_retrieval.py --alpha 0.3         # custom weight
   python fusion_retrieval.py --n 10              # show 10 examples
   python fusion_retrieval.py --compare           # show text/image/fusion per example
+
+  # Open-set demo: use ANY image + any text as the query (image need not
+  # belong to the gallery). Useful for real-world demos like phone photos.
+  python fusion_retrieval.py \
+      --query-image path/to/my_dress.jpg \
+      --query-text  "more floral and shorter"
 """
 import os
 import json
@@ -72,6 +78,21 @@ def _try_open(path: str) -> Image.Image:
         return Image.open(path).convert("RGB")
     except Exception:
         return Image.new("RGB", (224, 224), (180, 180, 180))
+
+
+def encode_image(model, preprocess, image_path: str) -> np.ndarray:
+    """Encode an arbitrary image file to a normalized CLIP embedding.
+
+    Unlike the gallery-slice path used by `get_query_embeddings()`, this
+    works for any image on disk — the image does NOT need to appear in the
+    pre-computed gallery. Used by the open-set demo mode.
+    """
+    image = Image.open(image_path).convert("RGB")
+    tensor = preprocess(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        emb = model.encode_image(tensor)
+        emb = emb / emb.norm(dim=-1, keepdim=True)
+    return emb.cpu().numpy().astype("float32")[0]
 
 
 def get_query_embeddings(model, entry, gallery_emb, asin_to_idx):
@@ -213,6 +234,51 @@ def save_comparison(entry, gallery_emb, gallery_paths, asin_to_idx,
 # Main
 # ---------------------------------------------------------------------------
 
+def run_open_set(model, preprocess, gallery_emb, gallery_paths,
+                 query_image: str, query_text: str, alpha: float,
+                 save_path: str, n_show: int = TOP_K):
+    """Demo mode: retrieve from gallery using an arbitrary image+text query.
+
+    The query image does NOT have to be in the gallery — it's encoded on
+    the fly with CLIP's image encoder.
+    """
+    if not os.path.isfile(query_image):
+        raise FileNotFoundError(f"Query image not found: {query_image}")
+
+    text_emb  = encode_text(model, query_text)
+    image_emb = encode_image(model, preprocess, query_image)
+
+    text_scores  = gallery_emb @ text_emb
+    image_scores = gallery_emb @ image_emb
+    fusion_scores = alpha * text_scores + (1 - alpha) * image_scores
+
+    top_idx = np.argsort(fusion_scores)[::-1][:n_show]
+
+    # Visualization: query image on the left, top-k retrieved on the right.
+    fig, axes = plt.subplots(1, n_show + 1, figsize=(3 * (n_show + 1), 4))
+    axes[0].imshow(_try_open(query_image))
+    axes[0].set_title(
+        f"Query\nα={alpha}\n\"{query_text[:40]}\"", fontsize=8
+    )
+    axes[0].axis("off")
+
+    for i, idx in enumerate(top_idx):
+        axes[i + 1].imshow(_try_open(gallery_paths[idx]))
+        axes[i + 1].set_title(
+            f"#{i+1} {fusion_scores[idx]:.3f}", fontsize=8
+        )
+        axes[i + 1].axis("off")
+
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    plt.savefig(save_path, dpi=100, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {save_path}")
+    print("Top-K paths:")
+    for i, idx in enumerate(top_idx):
+        print(f"  #{i+1}  score={fusion_scores[idx]:.4f}  {gallery_paths[idx]}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Multimodal fusion retrieval demo")
     parser.add_argument("--alpha", type=float, default=0.5,
@@ -222,15 +288,39 @@ def main():
     parser.add_argument("--compare", action="store_true",
                         help="Generate 3-row comparison figures (text/image/fusion)")
     parser.add_argument("--category", type=str, default=CATEGORY)
+    # Open-set demo: query with ANY image (need not be in gallery) + text.
+    parser.add_argument("--query-image", type=str, default=None,
+                        help="Path to an arbitrary query image (open-set demo)")
+    parser.add_argument("--query-text", type=str, default=None,
+                        help="Query text used together with --query-image")
+    parser.add_argument("--out", type=str, default=None,
+                        help="Output figure path for open-set demo "
+                             "(default: results/fusion/open_set.png)")
     args = parser.parse_args()
 
+    # Validate open-set args: both must be provided together.
+    if (args.query_image is None) != (args.query_text is None):
+        parser.error("--query-image and --query-text must be provided together")
+
     print("Loading CLIP model...")
-    model, _ = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load("ViT-B/32", device=device)
     model.eval()
 
     print("Loading gallery...")
     gallery_emb, gallery_paths, asin_to_idx = load_gallery(args.category)
     print(f"Gallery: {len(gallery_paths)} images")
+
+    # --- Open-set demo branch: skip the Fashion-IQ loop entirely. ---
+    if args.query_image is not None:
+        save_path = args.out or os.path.join(RESULTS_DIR, "open_set.png")
+        run_open_set(
+            model, preprocess, gallery_emb, gallery_paths,
+            query_image=args.query_image,
+            query_text=args.query_text,
+            alpha=args.alpha,
+            save_path=save_path,
+        )
+        return
 
     cap_file = os.path.join(DATA_DIR, "captions", f"cap.{args.category}.val.json")
     with open(cap_file) as f:
