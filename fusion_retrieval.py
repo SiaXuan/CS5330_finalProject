@@ -50,8 +50,11 @@ def load_gallery(category: str):
     ).astype("float32")
     with open(os.path.join(FEATURES_DIR, f"{category}_paths.txt")) as f:
         paths = [line.strip() for line in f]
+    # .strip() guards against a pre-existing bug in download_images.py that
+    # saved some files as "B00XYZ .jpg" (trailing space before the extension).
     asin_to_idx = {
-        os.path.splitext(os.path.basename(p))[0]: i for i, p in enumerate(paths)
+        os.path.splitext(os.path.basename(p))[0].strip(): i
+        for i, p in enumerate(paths)
     }
     return embeddings, paths, asin_to_idx
 
