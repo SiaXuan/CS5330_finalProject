@@ -50,7 +50,8 @@ def encode_images_fashionclip(model, image_paths, batch_size=32):
             inputs = processor(images=images, return_tensors="pt")
             pixel_values = inputs['pixel_values'].to(dev)
             with torch.no_grad():
-                emb = vision_model(pixel_values=pixel_values).pooler_output  # (B, 768)
+                pooled = vision_model(pixel_values=pixel_values).pooler_output  # (B, 768)
+                emb = model.model.visual_projection(pooled)  # (B, 512) shared CLIP space
                 emb = emb / emb.norm(dim=-1, keepdim=True)
             embeddings.append(emb.cpu().numpy().astype("float32"))
             valid_paths.extend(batch_paths)

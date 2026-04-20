@@ -12,9 +12,6 @@ env/
 # Downloaded images (run download_images.py to generate)
 images/
 
-# Computed features (run extract_features.py + build_index.py to generate)
-features/
-
 # macOS
 .DS_Store
 .AppleDouble

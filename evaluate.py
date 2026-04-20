@@ -51,11 +51,25 @@ else:
 # ---------------------------------------------------------------------------
 
 def load_gallery(category: str, model_name: str = "clip"):
-    embeddings = np.load(
+    all_embeddings = np.load(
         os.path.join(FEATURES_DIR, f"{category}_embeddings_{model_name}.npy")
     ).astype("float32")
     with open(os.path.join(FEATURES_DIR, f"{category}_paths_{model_name}.txt")) as f:
-        paths = [line.strip() for line in f]
+        all_paths = [line.strip() for line in f]
+
+    # Filter to val split ASINs only (official gallery definition)
+    split_file = os.path.join(DATA_DIR, "image_splits", f"split.{category}.val.json")
+    with open(split_file) as f:
+        val_asins = set(json.load(f))
+
+    paths, embeddings = [], []
+    for p, emb in zip(all_paths, all_embeddings):
+        asin = os.path.splitext(os.path.basename(p))[0].strip()
+        if asin in val_asins:
+            paths.append(p)
+            embeddings.append(emb)
+
+    embeddings = np.stack(embeddings)
     asin_to_idx = {
         os.path.splitext(os.path.basename(p))[0].strip(): i
         for i, p in enumerate(paths)
@@ -92,8 +106,8 @@ def encode_text_batch(model, queries: list[str], batch_size: int = 64,
             input_ids = inputs['input_ids'].to(dev)
             attention_mask = inputs['attention_mask'].to(dev)
             with torch.no_grad():
-                out = text_model(input_ids=input_ids, attention_mask=attention_mask)
-                emb = out.pooler_output
+                pooled = text_model(input_ids=input_ids, attention_mask=attention_mask).pooler_output
+                emb = model.model.text_projection(pooled)  # (B, 512) shared CLIP space
                 emb = emb / emb.norm(dim=-1, keepdim=True)
             embeddings.append(emb.cpu().numpy().astype("float32"))
     return np.concatenate(embeddings, axis=0)
@@ -197,6 +211,7 @@ def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas
         "R@1":  recall_at_k(r, 1),
         "R@5":  recall_at_k(r, 5),
         "R@10": recall_at_k(r, 10),
+        "R@50": recall_at_k(r, 50),
         "n":    len(valid),
         "ranks": r.tolist(),
     })
@@ -208,6 +223,7 @@ def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas
         "R@1":  recall_at_k(r, 1),
         "R@5":  recall_at_k(r, 5),
         "R@10": recall_at_k(r, 10),
+        "R@50": recall_at_k(r, 50),
         "n":    len(valid),
         "ranks": r.tolist(),
     })
@@ -221,6 +237,7 @@ def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas
             "R@1":   recall_at_k(r, 1),
             "R@5":   recall_at_k(r, 5),
             "R@10":  recall_at_k(r, 10),
+            "R@50":  recall_at_k(r, 50),
             "n":     len(valid),
             "ranks": r.tolist(),
         })
@@ -233,18 +250,19 @@ def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas
 # ---------------------------------------------------------------------------
 
 def print_table(results):
-    print("\n" + "=" * 62)
-    print(f"  {'Mode':<22} {'R@1':>7} {'R@5':>7} {'R@10':>7} {'N':>7}")
-    print("  " + "-" * 58)
+    print("\n" + "=" * 70)
+    print(f"  {'Mode':<22} {'R@1':>7} {'R@5':>7} {'R@10':>7} {'R@50':>7} {'N':>7}")
+    print("  " + "-" * 66)
     for row in results:
         print(
             f"  {row['mode']:<22}"
             f" {row['R@1']:>7.2%}"
             f" {row['R@5']:>7.2%}"
             f" {row['R@10']:>7.2%}"
+            f" {row['R@50']:>7.2%}"
             f" {row['n']:>7}"
         )
-    print("=" * 62)
+    print("=" * 70)
 
 
 # ---------------------------------------------------------------------------
