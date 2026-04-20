@@ -26,5 +26,6 @@ images/
 # Jupyter
 .ipynb_checkpoints/
 
-# notice.md
-notice.mdvenv/
+# personal/
+personal/
+
