@@ -145,18 +145,44 @@ Baseline: text query only, no reference image.
 
 ---
 
-## Expected Results (val split, dress category)
+## Results (val split)
+
+Run `python print_results.py` to reprint this table from the saved JSON files.
 
 | Method | Dress R@10 | Dress R@50 | Shirt R@10 | Shirt R@50 | Toptee R@10 | Toptee R@50 |
 |--------|-----------|-----------|-----------|-----------|------------|------------|
-| CLIP text-only | ? | ? | ? | ? | ? | ? |
-| CLIP image-only | ? | ? | ? | ? | ? | ? |
-| CLIP fusion α=0.7 | ? | ? | ? | ? | ? | ? |
-| FashionCLIP text-only | ? | ? | ? | ? | ? | ? |
-| FashionCLIP image-only | ? | ? | ? | ? | ? | ? |
-| FashionCLIP fusion α=0.7 | ? | ? | ? | ? | ? | ? |
+| CLIP text-only | 12.14% | 29.34% | 16.59% | 30.19% | 18.43% | 35.62% |
+| CLIP image-only | 4.03% | 11.23% | 6.96% | 14.68% | 6.70% | 14.09% |
+| CLIP fusion α=0.7 | 16.39% | 34.93% | 16.85% | 31.32% | 21.05% | 37.71% |
+| FashionCLIP text-only | 21.44% | 40.30% | 21.84% | 37.87% | 28.17% | 47.88% |
+| FashionCLIP image-only | 5.70% | 14.40% | 9.22% | 18.70% | 7.61% | 17.78% |
+| FashionCLIP fusion α=0.7 | 26.97% | 46.64% | 27.92% | 45.29% | 33.00% | 54.37% |
+| **Combiner (FashionCLIP)** | **33.85%** | **58.57%** | **30.29%** | **53.53%** | **36.80%** | **62.88%** |
 
-> All results reported on val split. Test split labels are not publicly available.
+> All results on val split. Test split labels are not publicly available.  
+> α=0.3 and α=0.5 both perform *worse* than text-only; see `print_results.py` for the full α comparison and explanation.
+
+---
+
+## Combiner (learned early fusion)
+
+The fusion baseline scores text and image separately and combines the scores.
+The Combiner instead learns a small MLP that maps `(candidate_image_emb, text_emb) → query_emb`,
+then does a single retrieval pass. Trained end-to-end on Fashion-IQ training triplets with
+InfoNCE loss; FashionCLIP backbone is frozen.
+
+```bash
+# Train on all 3 categories (saves best checkpoint to results/combiner_fashionclip.pt)
+python train_combiner.py
+
+# Evaluate a saved checkpoint without re-training
+python train_combiner.py --eval-only
+
+# Custom options
+python train_combiner.py --epochs 20 --batch-size 256 --lr 2e-4 --category dress shirt
+```
+
+See `train_combiner.py` module docstring for architecture details.
 
 ---
 
@@ -168,6 +194,8 @@ Baseline: text query only, no reference image.
 | `extract_features.py` | Encode all images → `features/*.npy` |
 | `build_index.py` | Build FAISS index → `features/*.faiss` |
 | `evaluate.py` | Compute Recall@K for text / image / fusion |
+| `print_results.py` | Print full results table + α=0.7 rationale (run directly) |
+| `train_combiner.py` | Train & evaluate learned MLP combiner (FashionCLIP backbone) |
 | `fusion_retrieval.py` | Demo: fusion retrieval + comparison figures + open-set |
 | `text_retrieval.py` | Baseline: text-only retrieval |
 | `retrieve.py` | Minimal FAISS demo (single query) |
