@@ -296,13 +296,14 @@ def main():
 
     if args.save:
         os.makedirs(RESULTS_DIR, exist_ok=True)
+        tag = f"{args.category}_{args.model}"
         save_data = [{k: v for k, v in r.items() if k != "ranks"} for r in results]
-        with open(os.path.join(RESULTS_DIR, "eval_results.json"), "w") as f:
+        with open(os.path.join(RESULTS_DIR, f"eval_results_{tag}.json"), "w") as f:
             json.dump(save_data, f, indent=2)
         ranks_data = {r["mode"]: r["ranks"] for r in results}
-        with open(os.path.join(RESULTS_DIR, "eval_ranks.json"), "w") as f:
+        with open(os.path.join(RESULTS_DIR, f"eval_ranks_{tag}.json"), "w") as f:
             json.dump(ranks_data, f)
-        print(f"\nSaved to {RESULTS_DIR}/eval_results.json and eval_ranks.json")
+        print(f"\nSaved to {RESULTS_DIR}/eval_results_{tag}.json and eval_ranks_{tag}.json")
 
 
 if __name__ == "__main__":
