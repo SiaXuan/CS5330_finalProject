@@ -21,10 +21,9 @@ def load_model(model_name: str):
     elif model_name == "fashionclip":
         from fashion_clip.fashion_clip import FashionCLIP
         model = FashionCLIP('fashion-clip')
-        return model, None  # FashionCLIP handles preprocessing internally
+        return model, None
 
 def encode_images_clip(model, preprocess, image_paths):
-    import torch
     embeddings, valid_paths = [], []
     with torch.no_grad():
         for path in tqdm(image_paths):
@@ -35,7 +34,7 @@ def encode_images_clip(model, preprocess, image_paths):
                 embeddings.append(emb.cpu().numpy()[0])
                 valid_paths.append(path)
             except Exception:
-                continue
+                raise
     return np.array(embeddings), valid_paths
 
 def encode_images_fashionclip(model, image_paths, batch_size=32):
