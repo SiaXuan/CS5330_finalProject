@@ -23,6 +23,9 @@ features/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/
 *.swp
 *.swo
 
