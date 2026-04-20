@@ -65,10 +65,11 @@ Run these steps **in order**. Steps 1–2 are offline (run once); steps 3+ are o
 Encode all gallery images with CLIP → save as `.npy`.
 
 ```bash
-python extract_features.py
+python extract_features.py --model clip         # default
+python extract_features.py --model fashionclip  # requires: pip install fashion-clip
 ```
 
-Output: `features/dress_embeddings.npy`
+Output: `features/dress_embeddings_clip.npy` or `features/dress_embeddings_fashionclip.npy`
 
 ### Step 2 — Build FAISS index
 
@@ -85,7 +86,8 @@ Output: `features/dress_index.faiss`
 Run the full evaluation on the val set. Tests multiple fusion weights at once.
 
 ```bash
-python evaluate.py --alphas 0.3 0.5 0.7
+python evaluate.py --alphas 0.3 0.5 0.7                        # CLIP (default)
+python evaluate.py --model fashionclip --alphas 0.3 0.5 0.7    # FashionCLIP
 ```
 
 Prints a table like:

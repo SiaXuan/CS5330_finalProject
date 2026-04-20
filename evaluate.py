@@ -50,14 +50,12 @@ else:
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_gallery(category: str):
+def load_gallery(category: str, model_name: str = "clip"):
     embeddings = np.load(
-        os.path.join(FEATURES_DIR, f"{category}_embeddings.npy")
+        os.path.join(FEATURES_DIR, f"{category}_embeddings_{model_name}.npy")
     ).astype("float32")
-    with open(os.path.join(FEATURES_DIR, f"{category}_paths.txt")) as f:
+    with open(os.path.join(FEATURES_DIR, f"{category}_paths_{model_name}.txt")) as f:
         paths = [line.strip() for line in f]
-    # .strip() guards against a pre-existing bug in download_images.py that
-    # saved some files as "B00XYZ .jpg" (trailing space before the extension).
     asin_to_idx = {
         os.path.splitext(os.path.basename(p))[0].strip(): i
         for i, p in enumerate(paths)
@@ -75,15 +73,20 @@ def load_val_queries(category: str):
 # Batch text encoding
 # ---------------------------------------------------------------------------
 
-def encode_text_batch(model, queries: list[str], batch_size: int = 64) -> np.ndarray:
+def encode_text_batch(model, queries: list[str], batch_size: int = 64,
+                      model_name: str = "clip") -> np.ndarray:
     embeddings = []
     for i in range(0, len(queries), batch_size):
         batch = queries[i : i + batch_size]
-        with torch.no_grad():
-            tokens = clip.tokenize(batch, truncate=True).to(device)
-            emb = model.encode_text(tokens)
-            emb = emb / emb.norm(dim=-1, keepdim=True)
-        embeddings.append(emb.cpu().numpy().astype("float32"))
+        if model_name == "clip":
+            with torch.no_grad():
+                tokens = clip.tokenize(batch, truncate=True).to(device)
+                emb = model.encode_text(tokens)
+                emb = emb / emb.norm(dim=-1, keepdim=True)
+            embeddings.append(emb.cpu().numpy().astype("float32"))
+        else:  # fashionclip
+            emb = model.encode_text(batch, batch_size=batch_size)
+            embeddings.append(emb.astype("float32"))
     return np.concatenate(embeddings, axis=0)
 
 
@@ -121,7 +124,7 @@ def recall_at_k(ranks: np.ndarray, k: int) -> float:
 
 
 def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas,
-                 preprocess=None, no_gallery_lookup: bool = False):
+                 preprocess=None, no_gallery_lookup: bool = False, model_name: str = "clip"):
     """
     Fast batch evaluation.
     - Text embeddings: average of 2 captions, batch-encoded upfront.
@@ -145,8 +148,8 @@ def evaluate_all(entries, gallery_emb, gallery_paths, asin_to_idx, model, alphas
     print("  Encoding text queries...")
     cap1_list = [e["captions"][0] for e in valid]
     cap2_list = [e["captions"][1] for e in valid]
-    emb1 = encode_text_batch(model, cap1_list)   # (N, D)
-    emb2 = encode_text_batch(model, cap2_list)   # (N, D)
+    emb1 = encode_text_batch(model, cap1_list, model_name=model_name)   # (N, D)
+    emb2 = encode_text_batch(model, cap2_list, model_name=model_name)   # (N, D)
     text_embs = (emb1 + emb2) / 2
     text_embs /= np.linalg.norm(text_embs, axis=1, keepdims=True)
 
@@ -248,18 +251,25 @@ def main():
     )
     parser.add_argument("--save", action="store_true",
                         help="Save results to results/eval_results.json")
+    parser.add_argument("--model", choices=["clip", "fashionclip"], default="clip")
     parser.add_argument("--no-gallery-lookup", action="store_true",
                         help="Re-encode candidate images from disk instead of "
                              "slicing the pre-computed gallery (slower but "
                              "supports open-set candidates)")
     args = parser.parse_args()
 
-    print("Loading CLIP model (ViT-B/32)...")
-    model, preprocess = clip.load("ViT-B/32", device=device)
-    model.eval()
+    if args.model == "clip":
+        print("Loading CLIP model (ViT-B/32)...")
+        model, preprocess = clip.load("ViT-B/32", device=device)
+        model.eval()
+    else:
+        print("Loading FashionCLIP...")
+        from fashion_clip.fashion_clip import FashionCLIP
+        model = FashionCLIP('fashion-clip')
+        preprocess = None
 
     print("Loading gallery...")
-    gallery_emb, gallery_paths, asin_to_idx = load_gallery(args.category)
+    gallery_emb, gallery_paths, asin_to_idx = load_gallery(args.category, args.model)
     print(f"Gallery: {len(gallery_paths)} images  dim={gallery_emb.shape[1]}")
 
     print("Loading val queries...")
@@ -270,6 +280,7 @@ def main():
     results = evaluate_all(
         entries, gallery_emb, gallery_paths, asin_to_idx, model, args.alphas,
         preprocess=preprocess, no_gallery_lookup=args.no_gallery_lookup,
+        model_name=args.model,
     )
 
     print_table(results)
