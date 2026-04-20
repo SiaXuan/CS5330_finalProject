@@ -32,5 +32,8 @@ features/
 # Model checkpoints
 tirg/checkpoints/
 
+# Trained re-ranker checkpoints (run rerank/train.py to generate)
+checkpoints/
+
 # Claude Code
 .claude/
