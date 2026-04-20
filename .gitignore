@@ -28,3 +28,6 @@ features/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# notice.md
+notice.md
