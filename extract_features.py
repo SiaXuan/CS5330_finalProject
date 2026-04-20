@@ -39,16 +39,24 @@ def encode_images_clip(model, preprocess, image_paths):
     return np.array(embeddings), valid_paths
 
 def encode_images_fashionclip(model, image_paths, batch_size=32):
+    processor = model.preprocess
+    vision_model = model.model.vision_model
+    dev = model.device
+
     embeddings, valid_paths = [], []
     for i in tqdm(range(0, len(image_paths), batch_size)):
         batch_paths = image_paths[i : i + batch_size]
         try:
             images = [Image.open(p).convert('RGB') for p in batch_paths]
-            emb = model.encode_images(images, batch_size=batch_size)  # already normalized numpy
-            embeddings.append(emb.astype("float32"))
+            inputs = processor(images=images, return_tensors="pt")
+            pixel_values = inputs['pixel_values'].to(dev)
+            with torch.no_grad():
+                emb = vision_model(pixel_values=pixel_values).pooler_output  # (B, 768)
+                emb = emb / emb.norm(dim=-1, keepdim=True)
+            embeddings.append(emb.cpu().numpy().astype("float32"))
             valid_paths.extend(batch_paths)
         except Exception:
-            continue
+            raise
     return np.concatenate(embeddings, axis=0), valid_paths
 
 def main():
