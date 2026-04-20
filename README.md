@@ -8,10 +8,13 @@ Given a reference image + a text description of changes, retrieve the target ima
 ## Setup
 
 ```bash
-pip install torch torchvision clip-by-openai faiss-cpu Pillow tqdm matplotlib numpy requests
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-> GPU (CUDA or Apple MPS) is optional but speeds up feature extraction significantly.
+> Activate the venv (`source venv/bin/activate`) every time you open a new terminal.  
+> GPU (CUDA or Apple MPS) is detected automatically — no config needed.
 
 ---
 
