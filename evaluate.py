@@ -84,9 +84,18 @@ def encode_text_batch(model, queries: list[str], batch_size: int = 64,
                 emb = model.encode_text(tokens)
                 emb = emb / emb.norm(dim=-1, keepdim=True)
             embeddings.append(emb.cpu().numpy().astype("float32"))
-        else:  # fashionclip
-            emb = model.encode_text(batch, batch_size=batch_size)
-            embeddings.append(emb.astype("float32"))
+        else:  # fashionclip — use text_model directly (encode_text() has broken API)
+            processor = model.preprocess
+            text_model = model.model.text_model
+            dev = model.device
+            inputs = processor(text=batch, return_tensors="pt", padding=True, truncation=True)
+            input_ids = inputs['input_ids'].to(dev)
+            attention_mask = inputs['attention_mask'].to(dev)
+            with torch.no_grad():
+                out = text_model(input_ids=input_ids, attention_mask=attention_mask)
+                emb = out.pooler_output
+                emb = emb / emb.norm(dim=-1, keepdim=True)
+            embeddings.append(emb.cpu().numpy().astype("float32"))
     return np.concatenate(embeddings, axis=0)
 
 
