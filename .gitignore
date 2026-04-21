@@ -26,5 +26,11 @@ images/
 # Jupyter
 .ipynb_checkpoints/
 
-# notice.md
-notice.mdvenv/
+# Computed features
+features/
+
+# Model checkpoints
+tirg/checkpoints/
+
+# Claude Code
+.claude/
