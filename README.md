@@ -18,8 +18,8 @@ We implement and compare **six methods** along two axes:
 | 1 | **CLIP text-only / image-only / α-fusion** | Baseline | Late fusion: `score = α·text + (1-α)·image` |
 | 2 | **FashionCLIP backend** | Backbone swap | `patrickjohncyh/fashion-clip`; same pipeline, much stronger |
 | 3 | **Open-set retrieval** | Demo | Query with *any* phone photo + text, no gallery membership needed |
-| 4 | **Combiner** (CLIP4CIR) | Early fusion | 2-layer MLP outputs a single unified query embedding; residual design |
-| 5 | **TIRG** | Early fusion | Gated residual: `gate·img + residual(img, text)` |
+| 4 | **Combiner** (CLIP4CIR) | Early fusion | 2-layer residual MLP: `normalize(img + MLP(img, text))` |
+| 5 | **TIRG** | Early fusion | Gated residual: `gate(img, text)·img + residual(img, text)` |
 | 6 | **Re-ranking** | 2-stage | MLP cross-encoder re-scores the top-50 fusion hits |
 
 ---
@@ -91,11 +91,16 @@ python viz_combiner.py             # combiner-vs-fusion comparison grids
 
 ### Step 4 — TIRG (gated residual)
 
-`out = gate(img, text) · img + residual(img, text)` — both the gate and residual are small MLPs on top of frozen FashionCLIP.
+`out = gate(img, text) · img + residual(img, text)` — both the gate and residual are small MLPs trained jointly on all three categories with frozen FashionCLIP as backbone.
 
 ```bash
-python -m tirg.train     --category dress
-python -m tirg.evaluate  --category dress
+# Train on all 3 categories jointly (default, ~17 epochs to convergence)
+python tirg/train.py
+
+# Evaluate each category with the saved checkpoint
+python tirg/evaluate.py --category dress  --checkpoint tirg/checkpoints/tirg_all_best.pt --save
+python tirg/evaluate.py --category shirt  --checkpoint tirg/checkpoints/tirg_all_best.pt --save
+python tirg/evaluate.py --category toptee --checkpoint tirg/checkpoints/tirg_all_best.pt --save
 ```
 
 ### Step 5 — Re-ranking (2-stage)
@@ -144,7 +149,7 @@ python fusion_retrieval.py \
 
 **Takeaway.** FashionCLIP alone lifts R@10 by ~10 points over CLIP in every category. α-fusion adds another ~5 points on top. α=0.7 (text-dominant) beats 0.5/0.3 — expected, since captions describe *changes*.
 
-### Table 2 — TIRG (learned early fusion, FashionCLIP backbone)
+### Table 2 — TIRG (gated early fusion, FashionCLIP backbone, joint training)
 
 | Category | R@1 | R@5 | R@10 | R@50 |
 |---|---:|---:|---:|---:|
@@ -152,7 +157,7 @@ python fusion_retrieval.py \
 | shirt | 5.20% | 22.62% | 31.99% | 53.43% |
 | toptee | 8.30% | 27.91% | 38.40% | 63.63% |
 
-**Takeaway.** TIRG beats late α-fusion across the board (+7-8 points R@10) and dramatically on R@50 (+10-15 points), confirming that a learned combiner finds the target's neighborhood better than a fixed linear mix.
+**Takeaway.** TIRG beats late α-fusion by +4–8 points R@10 and +8–13 points R@50 across all categories, confirming that a learned gated combiner finds the target's neighborhood better than a fixed linear mix. The model is trained jointly on all three categories for better generalization.
 
 ### Table 3 — Re-ranking over FashionCLIP top-50 (α=0.5)
 
@@ -194,7 +199,7 @@ python fusion_retrieval.py \
 
 | Dir | Contents |
 |---|---|
-| `tirg/` | `model.py` (gated residual), `train.py`, `evaluate.py` |
+| `tirg/` | `model.py` (gated residual), `train.py` (joint training, symmetric InfoNCE), `evaluate.py` |
 | `rerank/` | `model.py` (cross-encoder MLP), `dataset.py`, `precompute.py`, `train.py`, `evaluate.py` |
 
 ### Results
@@ -203,7 +208,7 @@ python fusion_retrieval.py \
 |---|---|
 | `results/eval_results_{cat}_{model}.json` | Baseline + α-fusion R@K |
 | `results/eval_ranks_{cat}_{model}.json` | Per-query rank lists |
-| `results/eval_results_{cat}_tirg.json` | TIRG R@K |
+| `results/eval_results_{cat}_tirg.json` | TIRG R@K (epoch 17, joint training) |
 | `results/rerank_eval_{cat}_{model}.json` | Fusion vs re-rank vs ceiling |
 | `results/rerank_train_history_{cat}_{model}.json` | Re-rank training curves |
 | `results/combiner_fashionclip.pt` | Trained Combiner weights |
@@ -215,7 +220,7 @@ python fusion_retrieval.py \
 
 | Member | Work |
 |---|---|
-| **Xinyue Xuan** | CLIP baseline + Fashion-IQ preprocessing; TIRG gated-residual combiner (`tirg/`, training + evaluation) |
+| **Xinyue Xuan** | CLIP baseline + Fashion-IQ preprocessing; TIRG gated-residual combiner (`tirg/`, joint training + evaluation) |
 | **Junrui Ding** | Fusion-retrieval pipeline (`evaluate.py`, `fusion_retrieval.py`, `text_retrieval.py`, `compare_viz.py`); FashionCLIP backbone integration and `--model` flag across the stack; Combiner (early-fusion MLP, CLIP4CIR residual); visualisations; Apple-MPS support |
 | **Martin Han** | Re-ranking package (`rerank/` — MLP cross-encoder, precompute, train, evaluate); model-agnostic `prepare_embeddings.py`; open-set retrieval support |
 
@@ -230,10 +235,11 @@ python extract_features.py  --model fashionclip
 python evaluate.py          --model clip          --alphas 0.3 0.5 0.7
 python evaluate.py          --model fashionclip   --alphas 0.3 0.5 0.7
 
-# Table 2
+# Table 2 — TIRG joint training (~17 epochs to convergence)
+python tirg/train.py --epochs 17
 for c in dress shirt toptee; do
-  python -m tirg.train    --category $c
-  python -m tirg.evaluate --category $c
+  python tirg/evaluate.py --category $c \
+      --checkpoint tirg/checkpoints/tirg_all_epoch17.pt --save
 done
 
 # Table 3
