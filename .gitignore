@@ -12,12 +12,6 @@ env/
 # Downloaded images (run download_images.py to generate)
 images/
 
-# Computed features (run extract_features.py + build_index.py to generate)
-features/
-
-# Trained re-ranker checkpoints (run rerank/train.py to generate)
-checkpoints/
-
 # macOS
 .DS_Store
 .AppleDouble
@@ -34,3 +28,12 @@ checkpoints/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Computed features
+features/
+
+# Model checkpoints
+tirg/checkpoints/
+
+# Claude Code
+.claude/
