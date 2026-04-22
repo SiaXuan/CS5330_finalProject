@@ -1,0 +1,5 @@
+[
+  {"category": "dress",  "mode": "combiner", "R@10": 0.3385, "R@50": 0.5857, "n": 1861},
+  {"category": "shirt",  "mode": "combiner", "R@10": 0.3029, "R@50": 0.5353, "n": 1941},
+  {"category": "toptee", "mode": "combiner", "R@10": 0.3680, "R@50": 0.6288, "n": 1867}
+]
