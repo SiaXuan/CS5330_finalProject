@@ -4,6 +4,8 @@
 
 Presentation Video Google Drive link: https://drive.google.com/file/d/1fLDdpYaS6jvng2bHpSZJTHuxzNVPM6P4/view?usp=sharing
 
+GitHub: https://github.com/SiaXuan/CS5330_finalProject.git
+
 Given a **reference image** and a **modification caption** (e.g. *"make it red with shorter sleeves"*), retrieve the target image from a gallery of ~18k fashion photos. Evaluated on the [Fashion-IQ](https://github.com/XiaoxiaoGuo/fashion-iq) benchmark (dress / shirt / toptee).
 
 We implement and compare **six methods** along two axes:
