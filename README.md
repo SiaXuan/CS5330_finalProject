@@ -4,6 +4,8 @@
 
 Presentation Video Google Drive link: https://drive.google.com/file/d/1fLDdpYaS6jvng2bHpSZJTHuxzNVPM6P4/view?usp=sharing
 
+Dataset (pre-downloaded images + pre-computed features) Google Drive link: https://drive.google.com/file/d/1bWlQ7dSWRK7ZTYZNBw3w2nok2V3_umQf/view?usp=drive_link
+
 GitHub: https://github.com/SiaXuan/CS5330_finalProject.git
 
 Given a **reference image** and a **modification caption** (e.g. *"make it red with shorter sleeves"*), retrieve the target image from a gallery of ~18k fashion photos. Evaluated on the [Fashion-IQ](https://github.com/XiaoxiaoGuo/fashion-iq) benchmark (dress / shirt / toptee).
@@ -62,6 +64,8 @@ Download images once (slow, some links broken — skipped at eval time):
 ```bash
 python download_images.py
 ```
+
+> Shortcut: the [dataset Google Drive link](https://drive.google.com/file/d/1bWlQ7dSWRK7ZTYZNBw3w2nok2V3_umQf/view?usp=drive_link) at the top provides a pre-downloaded `images/` + pre-computed `features/`. Unzip into the repo root to skip this step.
 
 ---
 
