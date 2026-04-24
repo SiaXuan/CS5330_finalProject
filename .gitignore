@@ -20,6 +20,9 @@ images/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/
 *.swp
 *.swo
 
@@ -34,10 +37,3 @@ tirg/checkpoints/
 
 # Claude Code
 .claude/
-
-# Media files
-*.mov
-*.mp4
-*.png
-*.jpg
-*.jpeg

@@ -38,8 +38,9 @@ def download_category(txt_path, save_dir, max_workers=16):
 
     print(f"Done. Failed: {len(failed)}/{len(pairs)}")
 
-# download dress only for testing
-download_category(
-    "fashion-iq-metadata/image_url/asin2url.dress.txt",
-    "images/dress"
-)
+for category in ["dress", "shirt", "toptee"]:
+    print(f"\nDownloading {category}...")
+    download_category(
+        f"fashion-iq-metadata/image_url/asin2url.{category}.txt",
+        f"images/{category}"
+    )
